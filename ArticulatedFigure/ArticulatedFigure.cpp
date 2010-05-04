@@ -21,6 +21,7 @@ typedef struct joint_t
 	struct joint_t *children[MAX_JCOUNT], *parent;
 } Joint;
 
+/* This adds a joint to a parent, or initializes it as the root if there are no parents */
 Joint *addJoint(Joint *parent, float x, float y, float z, float angle1, float angle2, char name[])
 {
 	Joint *newJoint;
@@ -53,20 +54,55 @@ Joint *addJoint(Joint *parent, float x, float y, float z, float angle1, float an
 
 Joint *root;
 Joint *selected;
-void SetupFigure(void)
+
+Joint *FindJoint(Joint *node, char name[])
 {
-	root = addJoint(NULL, 0, 0, 0, 0, 0, "root");
-	Joint *waist = addJoint(root, 0, -0.1, 0, 0, 0, "waist");
-	Joint *knee1 = addJoint(waist, -0.02, -0.05, 0, 0, 0, "knee1");
-	Joint *knee2 = addJoint(waist, 0.02, -0.05, 0, 0.0, 0.0, "knee2");
-	Joint *foot1 = addJoint(knee1, 0, -0.05, 0, 0, 0, "foot1");
-	Joint *foot2 = addJoint(knee2, 0, -0.05, 0, 0, 0, "foot2");
-	Joint *elbow1 = addJoint(root, -0.02, -0.05, 0, 0, 0, "elbow1");
-	Joint *elbow2 = addJoint(root, 0.02, -0.05, 0, 0, 0, "elbow1");
-	Joint *hand1 = addJoint(elbow1, 0, 0, 0.02, 0, 0, "hand1");
-	Joint *hand2 = addJoint(elbow2, 0, 0, 0.02, 0, 0, "hand2");
-	selected = root;
+	if(strcmp(node->name, name) == 0)
+		return node;
+	else
+	{
+		Joint *found = NULL;
+		for(int i = 0; i < node->childCount; i++)
+		{
+			found = FindJoint(node->children[i], name);
+			if(found)
+				return found;
+		}
+	}
+	return NULL;
+
 }
+
+void LoadFigure(char *path)
+{
+	// parent x y z angle1 angle2 name
+	FILE *file;
+	float x=0, y=0, z=0, angle1=0, angle2=0;
+	char name[20], parent[20], buffer[512];
+	Joint *tmpJoint;
+	if(!(file = fopen(path, "r")))
+	{
+		printf("Unable to load file\n");
+		return;
+	}
+
+	while(!feof(file))
+	{
+		fgets(buffer, 512, file);
+		sscanf(buffer, "%s %f %f %f %f %f %s\n", parent, &x, &y, &z, &angle1, &angle2, name);
+		if(strcmp(parent, "0") == 0)
+			root = addJoint(NULL, x, y, z, angle1, angle2, name);
+		else
+		{
+			tmpJoint = FindJoint(root, parent);
+			addJoint(tmpJoint, x, y, z, angle1, angle2, name);
+		}
+	}
+	selected = root;
+	fclose(file);
+}
+
+// Draws a joint and traverses to its children to draw those
 void DrawJoint(Joint *node)
 {
 	glPushMatrix();
@@ -90,6 +126,7 @@ void DrawJoint(Joint *node)
 	return;
 }
 
+// Draws the figure
 void DrawFigure(float x, float y, float z)
 {
 	glPushMatrix();
@@ -98,6 +135,7 @@ void DrawFigure(float x, float y, float z)
 	glPopMatrix();
 }
 
+// Draws the stage that the figure will be located on
 void DrawStage(void)
 {
 	glBegin(GL_POLYGON);
@@ -109,6 +147,7 @@ void DrawStage(void)
 	glEnd();
 }
 
+// Draws the xyz axis for reference
 void DrawAxis(void)
 {
 	glBegin(GL_LINES);
@@ -129,6 +168,8 @@ void DrawAxis(void)
 		glVertex3f(0, 0, 0.1);
 	glEnd();
 }
+
+// Displays a command window to select figure joints
 void DisplayCmd() {
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -177,39 +218,24 @@ void motion(int x, int y)
 	display();
 }
 
-void selectNewLimb(Joint *node)
-{
-	if(strcmp(node->name, cmd_buffer) == 0)
-	{
-		selected = node;
-	}
-	else
-	{
-		for(int i = 0; i < node->childCount; i++)
-		{
-			selectNewLimb(node->children[i]);
-		}
-	}
-
-}
-
 void keyboard(unsigned char key, int x, int y)
 {
 	if(key == 'c' && typing == false)
-	{
 		typing = true;
-	} else if (typing == true && key == 27) {
+	else if (typing == true && key == 27) {
 		cmd_buffer[0] = 0;
 		cmd_buffer_len = 0;
 		typing = false;
-	} else if(typing == true && key == 8) {
+	} else if(typing == true && key == 8)
 		cmd_buffer[cmd_buffer_len--] = 0;
-	} else if(typing == true && key == 13) {
-		selectNewLimb(root);
+	else if(typing == true && key == 13) {
+		selected = FindJoint(root, cmd_buffer);
 		cmd_buffer[0] = 0;
 		cmd_buffer_len = 0;
 		typing = false;
-	} else if(typing == true) {
+	}
+	else if(typing == true)
+	{
 		cmd_buffer[cmd_buffer_len++] = key;
 		cmd_buffer[cmd_buffer_len] = 0;
 	}
@@ -229,8 +255,7 @@ int main(int argc, char** argv)
 	gluPerspective(60.0, 1.0, 1.0, 10.0);
 	gluLookAt( eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, top.x, top.y, top.z );
 
-	SetupFigure();
-	//DrawStage();
+	LoadFigure("human.txt");
 	glClearColor (0.0, 0.0, 0.0, 0.0);
 	glutDisplayFunc(display);
 	glutMotionFunc(motion);
