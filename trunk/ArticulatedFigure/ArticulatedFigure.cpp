@@ -16,6 +16,7 @@ bool keyframe_typing = false;
 int cmd_buffer_len = 0;
 char cmd_buffer[100];
 int frameNum = 0;
+int baseTime = 0;
 
 using namespace std;
 
@@ -31,10 +32,9 @@ typedef struct keyframe_t
 typedef struct joint_t
 {
     char name[100];
-    float x, y, z, angle1, angle2, offA1, offA2; // Start
+    float x, y, z, angle1, angle2; // Start
     int childCount;
-    struct joint_t *children[MAX_JCOUNT], *parent;
-	int keyframeCount;
+    struct joint_t *children[MAX_JCOUNT];
 	Keyframe *keyframe;
 	Keyframe *curframe;
 } Joint;
@@ -47,12 +47,10 @@ Joint *addJoint(Joint *parent, float x, float y, float z, float angle1, float an
     if(!parent)
     {
         parent = (Joint *)malloc(sizeof(Joint));
-        parent->parent = NULL;
     }
     else if(parent->childCount < MAX_JCOUNT)
     {
         newJoint = (Joint *)malloc(sizeof(Joint));
-        newJoint->parent = parent;
         parent->children[parent->childCount++] = newJoint;
         parent = newJoint;
     }
@@ -122,10 +120,8 @@ void LoadFigure(char *path)
     // parent x y z angle1 angle2 name
     FILE *file;
     float x=0, y=0, z=0, angle1=0, angle2=0;
-	int time;
     char name[20], parent[20], buffer[512];
     Joint *tmpJoint;
-	Keyframe *k;
 
     if(!(file = fopen(path, "r")))
     {
@@ -180,7 +176,7 @@ void LoadAnimation(char *path)
 void SaveTraversal(Joint *node, int time, char* buffer)
 {
 	printf("%f %f %d\n", node->angle1, node->angle2, time);
-	char tmpbuffer[128];
+
 	sprintf(buffer+strlen(buffer), "%s %f %f %d\n", node->name, node->angle1, node->angle2, time);
 	//strcat(buffer, tmpbuffer);
 	for(int i = 0; i < node->childCount; i++)
@@ -210,12 +206,11 @@ void jointAnimate(Joint *joint, int time)
 		joint->curframe = joint->curframe->next;
 	if(joint->curframe != NULL && joint->curframe->next != NULL)
 	{
-		int cur_time = time - joint->curframe->time;
+		int cur_time = time - joint->curframe->time - baseTime;
 		int tdelta = joint->curframe->next->time - joint->curframe->time;
 		float fraction = (float)cur_time/tdelta;
 
 		joint->angle1 = joint->curframe->angle1 + (cur_time)*(joint->curframe->next->angle1 - joint->curframe->angle1)/tdelta;
-		printf("angle1: %f %f %f\n", joint->angle1, joint->curframe->angle1, joint->curframe->next->angle1);
 		joint->angle2 = joint->curframe->angle2 + (cur_time)*(joint->curframe->next->angle2 - joint->curframe->angle2)/tdelta;
 	}
 	
@@ -251,12 +246,9 @@ void DrawJoint(Joint *node)
 // Draws the figure
 void DrawFigure(float x, float y, float z)
 {
-	int i;
     glPushMatrix();
     glTranslatef(x, y, z);
 	DrawJoint(root);
-	//for(i = 0; i < 10; i++)
-    //jointAnimate(root , 10 );
     glPopMatrix();
 }
 
@@ -331,7 +323,7 @@ void display(void)
 }
 
 typedef struct coord_t { float x; float y; float z; } Coord;
-Coord eye = { 1.5, 0.5, 1.5 };
+Coord eye = { 1.5, 0.8, 1.5 };
 Coord lookat = { 0.5, 0, 0.5 };
 Coord top = { 0, 1, 0 };
 void rotateScene(float angle1, float angle2, float angle3)
@@ -409,6 +401,8 @@ void keyboard(unsigned char key, int x, int y)
 		rotateScene(0, 0, 0.3);
 	else if(key == 'r')
 		LoadFigure(FIGURE);
+	else if(key == 'x')
+		baseTime = 	glutGet(GLUT_ELAPSED_TIME);
 	else
 	{
 		// Enter command mode
@@ -422,13 +416,13 @@ void keyboard(unsigned char key, int x, int y)
 		else if(selected != NULL)
 		{
 			if(key == 'w')
-				selected->angle1 += .1;
+				selected->angle1 += .3;
 			else if(key == 's')
-				selected->angle1 -= .1;
+				selected->angle1 -= .3;
 			else if(key == 'd')
-				selected->angle2 += .1;
+				selected->angle2 += .3;
 			else if(key == 'a')
-				selected->angle2 -= .1;
+				selected->angle2 -= .3;
 		}
 	}
 	glutPostRedisplay();
