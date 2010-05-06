@@ -8,18 +8,31 @@
 #define HEIGHT 500
 
 #define MAX_JCOUNT 6
+#define MAX_KFCOUNT 512
 
 bool typing = false;
 int cmd_buffer_len = 0;
 char cmd_buffer[100];
+int frameNum = 0;
+
+//Define a keyframe for joints
+typedef struct
+{
+	int time;
+	float angle1;
+	float angle2;
+} Keyframe;
 
 typedef struct joint_t
 {
         char name[100];
-        float x, y, z, angle1, angle2; // Start
+        float x, y, z, angle1, angle2, offA1, offA2; // Start
         int childCount;
         struct joint_t *children[MAX_JCOUNT], *parent;
+	int keyframeCount;
+	Keyframe keyframe[MAX_KFCOUNT];
 } Joint;
+
 
 /* This adds a joint to a parent, or initializes it as the root if there are no parents */
 Joint *addJoint(Joint *parent, float x, float y, float z, float angle1, float angle2, char name[])
@@ -43,6 +56,8 @@ Joint *addJoint(Joint *parent, float x, float y, float z, float angle1, float an
         parent->z = z;
         parent->angle1 = angle1;
         parent->angle2 = angle2;
+	//parent->offA1 = 0;
+	//parent->offA2 = 0;
         parent->childCount = 0;
         strcpy(parent->name, name);
 
@@ -78,8 +93,11 @@ void LoadFigure(char *path)
         // parent x y z angle1 angle2 name
         FILE *file;
         float x=0, y=0, z=0, angle1=0, angle2=0;
-        char name[20], parent[20], buffer[512];
+	int time;
+        char name[20], parent[20], buffer[512], animBuf[512], *ptr, *token;
         Joint *tmpJoint;
+	Keyframe *k;
+
         if(!(file = fopen(path, "r")))
         {
                 printf("Unable to load file\n");
@@ -88,8 +106,9 @@ void LoadFigure(char *path)
 
         while(!feof(file))
         {
+ 		memset(animBuf, 0, 1024);
                 fgets(buffer, 512, file);
-                sscanf(buffer, "%s %f %f %f %f %f %s\n", parent, &x, &y, &z, &angle1, &angle2, name);
+                sscanf(buffer, "%s %f %f %f %f %f %s %[^\n]", parent, &x, &y, &z, &angle1, &angle2, name, animBuf);
                 if(strcmp(parent, "0") == 0)
                         root = addJoint(NULL, x, y, z, angle1, angle2, name);
                 else
@@ -97,8 +116,41 @@ void LoadFigure(char *path)
                         tmpJoint = FindJoint(root, parent);
                         addJoint(tmpJoint, x, y, z, angle1, angle2, name);
                 }
-        }
-        selected = root;
+
+		/* Now check for animation data and set up keyframes */
+		if (strlen(animBuf) > 3)
+		{
+			ptr = animBuf;
+			while ((token = strtok(ptr, " ")))
+			{
+				ptr = NULL;
+				time = atoi(token);
+			
+				token = strtok(ptr, " ");
+				angle1 = atof(token);
+
+				token = strtok(ptr, " ");
+				angle2 = atof(token);
+
+				//printf("Read %d %f\n", time, angle1);
+
+				if (tmpJoint->keyframeCount >= MAX_KFCOUNT)
+				{
+					printf("Can't add more keyframes\n");
+					continue;
+				}
+				
+				k = &(tmpJoint->keyframe[tmpJoint->keyframeCount]);
+
+				k->time = time;
+				k->angle1 = angle1;
+				k->angle2 = angle2;
+			
+				tmpJoint->keyframeCount++;
+			}
+		}
+	}
+	selected = root;
         fclose(file);
 }
 
@@ -126,12 +178,57 @@ void DrawJoint(Joint *node)
         return;
 }
 
+
+
+//Animate the joint in question using interpolation
+void jointAnimate(Joint *root, int time)
+ {
+ 	int i;
+ 
+ 	float ang1,ang2,tim;
+ 
+ 	/* Check for keyframes */
+ 	for (i = 0; i < root->keyframeCount; i++)			
+ 		if (root->keyframe[i].time == time)
+ 		{
+ 			/* Find the index for the interpolation */
+ 			if (i != root->keyframeCount - 1)
+ 			{
+ 				tim = root->keyframe[i + 1].time - root->keyframe[i].time;
+ 				ang1 = root->keyframe[i + 1].angle1 - root->keyframe[i].angle1;
+ 				ang2 = root->keyframe[i + 1].angle2 - root->keyframe[i].angle2;
+ 
+ 				root->offA1 = ang1 / tim;
+ 				root->offA2 = ang2 / tim;
+  			}
+ 			else
+ 			{
+ 				root->offA1 = 0;
+ 				root->offA2 = 0;
+ 			}
+ 		}
+ 
+ 	/* Change animation */
+ 	root->angle1 += root->offA1;
+ 	root->angle2 += root->offA2;
+
+	DrawJoint(root); 
+
+ 	/* Call on other bones */
+ 	for (i = 0; i < root->childCount; i++)
+ 		jointAnimate(root->children[i], time);
+	
+ }
+
+
 // Draws the figure
 void DrawFigure(float x, float y, float z)
 {
+	int i;
         glPushMatrix();
         glTranslatef(x, y, z);
-        DrawJoint(root);
+	//for(i = 0; i < 10; i++)
+        	jointAnimate(root , 10 );
         glPopMatrix();
 }
 
@@ -199,7 +296,6 @@ Coord top = { 0, 1, 0 };
 void display(void)
 {
         glClear(GL_COLOR_BUFFER_BIT);
-       
         glColor3f(1,1,1);
         glPushMatrix();
                 DrawStage();
@@ -247,7 +343,7 @@ int main(int argc, char** argv)
         glutInit(&argc, argv);
         glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGB);
         glutInitWindowSize (WIDTH, HEIGHT);
-        glutInitWindowPosition (100, 100);
+        glutInitWindowPosition (500, 100);
 
         glutCreateWindow (argv[0]);
 
@@ -256,10 +352,10 @@ int main(int argc, char** argv)
         gluPerspective(60.0, 1.0, 1.0, 10.0);
         gluLookAt( eye.x, eye.y, eye.z, lookat.x, lookat.y, lookat.z, top.x, top.y, top.z );
 
-        LoadFigure("human.txt");
+        LoadFigure("wave.txt");
         glClearColor (0.0, 0.0, 0.0, 0.0);
         glutDisplayFunc(display);
-        glutMotionFunc(motion);
+       // glutMotionFunc(motion);
         glutKeyboardFunc(keyboard);
         glutMainLoop();
 
