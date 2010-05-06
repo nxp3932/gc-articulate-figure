@@ -4,7 +4,7 @@ waist -0.02 -0.05 0 0 0 knee1
 waist 0.02 -0.05 0 0.0 0.0 knee2
 knee1 0 -0.05 0 0 0 foot1
 knee2 0 -0.05 0 0 0 foot2
-root -0.02 -0.05 0 0 0 elbow1 10 45 0 20 90 0 30 45 0 40 0 0
+root -0.02 -0.05 0 0 0 elbow1
 root 0.02 -0.05 0 0 0 elbow2
 elbow1 0 0 0.02 0 0 hand1
 elbow2 0 0 0.02 0 0 hand2

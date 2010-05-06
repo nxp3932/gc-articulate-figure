@@ -3,6 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ArticulatedFigure", "ArticulatedFigure\ArticulatedFigure.vcproj", "{8A4EB601-184E-4AD0-B7F4-32028729250F}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{4C764780-A62B-4EBF-8979-8300B3C4239D}"
+	ProjectSection(SolutionItems) = preProject
+		ArticulatedFigure\wave.txt = ArticulatedFigure\wave.txt
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
