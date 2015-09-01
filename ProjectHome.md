@@ -1,0 +1,1 @@
+Project for Prof Wu's Computer Graphics Articulated Figure
